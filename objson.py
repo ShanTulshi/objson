@@ -8,23 +8,25 @@ NOTE: Objects passed in *must* have a default (no-args)
       constructor.
 '''
 def objson(obj, jsonify=True):
-    retdict = {'__meta__': {'__name__' : type(obj).__name__, '__module__' : type(obj).__module__}}
+    jdict = {}
     for s in dir(obj):
         t = getattr(obj, s)
         if(s == '__doc__' or callable(t)):
             continue
         elif(type(t) in [str, int, float]):
-            retdict[s] = t
+            jdict[s] = t
         else:
-            retdict[s] = objson(s, False)
+            jdict[s] = objson(s, False)
+    retdict = {'__meta__': {'__name__' : type(obj).__name__, '__module__' : type(obj).__module__}, 'obj' : jdict}
     if(jsonify):
-        return json.dumps(retdict)
+        return json.dumps(jdict)
     else:
-        return retdict
+        return jdict
 
-def jsonobj(json):
+def jsonobj(js):
+    assert type(js) in [json, dict]
     try:
-        c = getattr(json['__meta__']['__module__'], json['__meta__']['__name__'])()
+        c = getattr(js['__meta__']['__module__'], js['__meta__']['__name__'])()
     except (KeyError, NameError, TypeError) as err:
         t = type(err)
         if(t is KeyError):
@@ -36,4 +38,12 @@ def jsonobj(json):
             raise TypeError('objson: Class does not have a valid no-args constructor!')
         else:
             raise err
-    # TODO. In the meantime, just use pickle.
+    for key, val in js['obj']:
+        if(type(val) in [json, dict]):
+            try:
+                setattr(c, key, jsonobj(val))
+            except KeyError:
+                setattr(c, key, val)
+
+def jsonobjs(s):
+    return jsonobj(json.loads(s))
